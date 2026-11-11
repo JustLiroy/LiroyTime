@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>מערכת שעות • iOS 27 Glass</title>
+
+    <!-- PWA & iOS Native App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="המערכת שלי">
+    <meta name="theme-color" content="#070812">
+    <link id="apple-touch-icon" rel="apple-touch-icon" href="">
+    <link id="app-manifest" rel="manifest" href="">
+
+    <!-- Fonts: Heebo & Assistant for crisp modern Hebrew + Inter for numbers -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Heebo:wght@300;400;500;600;700;800;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Phosphor Icons for crisp iOS-like SF Symbols aesthetic -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Heebo', 'Assistant', 'Inter', 'sans-serif'],
+                        num: ['Inter', 'Heebo', 'sans-serif']
+                    },
+                    animation: {
+                        'aurora-1': 'aurora1 18s ease-in-out infinite alternate',
+                        'aurora-2': 'aurora2 22s ease-in-out infinite alternate',
+                        'aurora-3': 'aurora3 26s ease-in-out infinite alternate',
+                        'scan-beam': 'scanBeam 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        aurora1: {
+                            '0%': { transform: 'translate(0%, 0%) scale(1) rotate(0deg)' },
+                            '100%': { transform: 'translate(18%, 14%) scale(1.25) rotate(25deg)' }
+                        },
+                        aurora2: {
+                            '0%': { transform: 'translate(0%, 0%) scale(1.1) rotate(0deg)' },
+                            '100%': { transform: 'translate(-20%, 15%) scale(0.95) rotate(-30deg)' }
+                        },
+                        aurora3: {
+                            '0%': { transform: 'translate(0%, 0%) scale(1)' },
+                            '100%': { transform: 'translate(10%, -20%) scale(1.2)' }
+                        },
+                        scanBeam: {
+                            '0%': { top: '4%', opacity: '0.2' },
+                            '50%': { opacity: '1' },
+                            '100%': { top: '94%', opacity: '0.2' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --safe-top: env(safe-area-inset-top, 16px);
+            --safe-bottom: env(safe-area-inset-bottom, 20px);
+            --spring: cubic-bezier(0.22, 1.35, 0.36, 1);
+            --smooth: cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #060711;
+            color: #ffffff;
+            font-family: 'Heebo', sans-serif;
+            overflow-x: hidden;
+            min-height: 100dvh;
+            padding-top: max(12px, var(--safe-top));
+            padding-bottom: calc(96px + var(--safe-bottom));
+            user-select: none;
+        }
+
+        /* iOS 27 Spatial Layered Glass Surfaces */
+        .ios27-glass {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
+            backdrop-filter: blur(36px) saturate(195%);
+            -webkit-backdrop-filter: blur(36px) saturate(195%);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow: 
+                inset 0 1px 1px 0 rgba(255, 255, 255, 0.32),
+                inset 0 -1px 1px 0 rgba(255, 255, 255, 0.05),
+                0 16px 36px -8px rgba(0, 0, 0, 0.55);
+        }
+
+        .ios27-glass-heavy {
+            background: linear-gradient(160deg, rgba(28, 32, 54, 0.78) 0%, rgba(14, 16, 28, 0.88) 100%);
+            backdrop-filter: blur(48px) saturate(210%);
+            -webkit-backdrop-filter: blur(48px) saturate(210%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 
+                inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35),
+                0 24px 60px rgba(0, 0, 0, 0.75);
+        }
+
+        .ios27-pill-track {
+            background: rgba(12, 14, 24, 0.52);
+            backdrop-filter: blur(28px) saturate(180%);
+            -webkit-backdrop-filter: blur(28px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.11);
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
+        }
+
+        /* Specular Reflection Sheen on Hover/Active */
+        .ios27-card {
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.42s var(--spring), box-shadow 0.35s var(--smooth), border-color 0.3s ease;
+        }
+        .ios27-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 65%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
+            transform: skewX(-22deg);
+            transition: left 0.7s ease;
+            pointer-events: none;
+        }
+        .ios27-card:active {
+            transform: scale(0.968);
+        }
+        .ios27-card:hover::before {
+            left: 140%;
+        }
+
+        /* Spring Interactive Buttons */
+        .spring-btn {
+            transition: transform 0.38s var(--spring), background-color 0.25s ease, opacity 0.2s ease;
+        }
+        .spring-btn:active {
+            transform: scale(0.91);
+        }
+
+        /* Dynamic Island Morphing */
+        .dynamic-island {
+            background: rgba(5, 6, 11, 0.86);
+            backdrop-filter: blur(32px) saturate(200%);
+            -webkit-backdrop-filter: blur(32px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow: 
+                inset 0 1px 1px rgba(255, 255, 255, 0.24),
+                0 10px 30px rgba(0, 0, 0, 0.7);
+            transition: all 0.5s var(--spring);
+        }
+
+        /* Custom Scrollbar Hide */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Modal Transitions */
+        .modal-backdrop {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.32s var(--smooth);
+        }
+        .modal-backdrop.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-sheet {
+            transform: translateY(100%) scale(0.96);
+            transition: transform 0.48s var(--spring);
+        }
+        .modal-backdrop.open .modal-sheet {
+            transform: translateY(0) scale(1);
+        }
+
+        /* Glass Tint Presets */
+        .tint-blue   { background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(37, 99, 235, 0.08)); border-color: rgba(125, 211, 252, 0.34); }
+        .tint-purple { background: linear-gradient(135deg, rgba(192, 132, 252, 0.22), rgba(126, 34, 206, 0.08)); border-color: rgba(216, 180, 254, 0.34); }
+        .tint-emerald{ background: linear-gradient(135deg, rgba(52, 211, 153, 0.22), rgba(5, 150, 105, 0.08)); border-color: rgba(110, 231, 183, 0.34); }
+        .tint-amber  { background: linear-gradient(135deg, rgba(251, 191, 36, 0.22), rgba(217, 119, 6, 0.08)); border-color: rgba(253, 224, 71, 0.34); }
+        .tint-rose   { background: linear-gradient(135deg, rgba(251, 113, 133, 0.22), rgba(225, 29, 72, 0.08)); border-color: rgba(253, 164, 175, 0.34); }
+        .tint-cyan   { background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(8, 145, 178, 0.08)); border-color: rgba(103, 232, 249, 0.34); }
+    </style>
+</head>
+<body class="antialiased selection:bg-sky-400/30">
+
+    <!-- Cosmic Ambient Aurora Background (iOS 27 Spatial Wallpaper) -->
+    <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none bg-[#05060f]">
+        <div class="absolute -top-[15%] -right-[10%] w-[75vw] h-[75vw] max-w-[600px] max-h-[600px] rounded-full bg-indigo-600/30 blur-[110px] animate-aurora-1"></div>
+        <div class="absolute top-[25%] -left-[15%] w-[80vw] h-[80vw] max-w-[650px] max-h-[650px] rounded-full bg-cyan-500/22 blur-[120px] animate-aurora-2"></div>
+        <div class="absolute -bottom-[15%] right-[10%] w-[75vw] h-[75vw] max-w-[600px] max-h-[600px] rounded-full bg-fuchsia-600/24 blur-[115px] animate-aurora-3"></div>
+        <!-- Subtle spatial noise/grid overlay -->
+        <div class="absolute inset-0 opacity-[0.035]" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 24px 24px;"></div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="max-w-xl mx-auto px-4 relative z-10">
+
+        <!-- iOS 27 Dynamic Island Live Status Pill -->
+        <div class="flex justify-center mb-4 sticky top-2 z-30">
+            <button id="dynamic-island" onclick="toggleIslandExpand()" class="dynamic-island rounded-full px-4 py-2 flex items-center gap-3 text-xs font-medium text-white/95 max-w-[94vw] cursor-pointer">
+                <span class="relative flex h-2.5 w-2.5 shrink-0">
+                    <span id="island-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span id="island-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+                </span>
+                <div id="island-compact" class="flex items-center gap-2 truncate">
+                    <span id="island-status-label" class="text-white/60 font-normal">עכשיו:</span>
+                    <span id="island-subject" class="font-bold tracking-tight truncate">טוען מערכת...</span>
+                    <span id="island-time" class="font-num text-[11px] bg-white/10 px-2 py-0.5 rounded-full text-sky-300 shrink-0">--:--</span>
+                </div>
+            </button>
+        </div>
+
+        <!-- Top Header & Quick Actions -->
+        <header class="flex items-center justify-between mb-5 pt-1">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span id="header-date" class="text-xs font-medium text-sky-300/90 tracking-wide">יום רביעי • סמסטר א׳</span>
+                </div>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-l from-white via-white to-white/70 bg-clip-text text-transparent">
+                    המערכת שלי
+                </h1>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Add to Home Screen Guide Button -->
+                <button onclick="openPwaModal()" title="התקנה באייפון" class="spring-btn ios27-glass w-10 h-10 rounded-full flex items-center justify-center text-white/90 hover:text-white">
+                    <i class="ph ph-export text-lg"></i>
+                </button>
+
+                <!-- AI Image Scanner Button -->
+                <button onclick="openScannerModal()" class="spring-btn ios27-glass px-3.5 h-10 rounded-full flex items-center gap-2 text-xs sm:text-sm font-semibold text-white bg-gradient-to-l from-sky-500/25 to-indigo-500/25 border-sky-300/30 shadow-lg shadow-sky-500/10">
+                    <i class="ph-fill ph-sparkle text-sky-300 text-base"></i>
+                    <span>סרוק תמונה</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- View Mode Segmented Control (תצוגת יום / תצוגת שבוע) -->
+        <div class="ios27-pill-track p-1 rounded-2xl grid grid-cols-2 gap-1 mb-4 relative">
+            <div id="view-indicator" class="absolute top-1 bottom-1 right-1 w-[calc(50%-4px)] rounded-xl bg-white/15 border border-white/25 shadow-sm backdrop-blur-md transition-transform duration-300 ease-out"></div>
+            <button onclick="setViewMode('day')" id="btn-view-day" class="relative z-10 py-2 text-xs sm:text-sm font-bold text-white transition-colors flex items-center justify-center gap-1.5">
+                <i class="ph-bold ph-rows"></i>
+                <span>תצוגת יום</span>
+            </button>
+            <button onclick="setViewMode('week')" id="btn-view-week" class="relative z-10 py-2 text-xs sm:text-sm font-semibold text-white/60 transition-colors flex items-center justify-center gap-1.5">
+                <i class="ph-bold ph-squares-four"></i>
+                <span>תצוגת שבוע</span>
+            </button>
+        </div>
+
+        <!-- Day Selector Pills (Shown in Day Mode) -->
+        <div id="day-selector-container" class="mb-5 transition-all duration-300">
+            <div class="ios27-pill-track p-1.5 rounded-[22px] grid grid-cols-6 gap-1 relative" id="day-pills">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </div>
+
+        <!-- Active / Next Lesson Spotlight Widget (Shown in Day Mode when applicable) -->
+        <div id="live-widget-container" class="mb-5 hidden">
+            <!-- Populated dynamically -->
+        </div>
+
+        <!-- Main Timetable Content Area -->
+        <main id="schedule-container" class="space-y-3.5 pb-6">
+            <!-- Lessons rendered here -->
+        </main>
+
+    </div>
+
+    <!-- Floating Bottom Glass Dock -->
+    <div class="fixed bottom-0 inset-x-0 z-30 pointer-events-none pb-[max(14px,var(--safe-bottom))] px-4">
+        <div class="max-w-xl mx-auto flex items-center justify-between gap-3">
+            <!-- Quick Stats Glass Pill -->
+            <div class="pointer-events-auto ios27-glass rounded-full px-4 py-2.5 flex items-center gap-3 text-xs text-white/80">
+                <div class="flex items-center gap-1.5">
+                    <i class="ph-fill ph-book-open-text text-sky-300 text-sm"></i>
+                    <span id="footer-count" class="font-semibold">0 שיעורים</span>
+                </div>
+                <span class="text-white/20">|</span>
+                <button onclick="jumpToToday()" class="text-sky-300 font-bold hover:underline">היום</button>
+            </div>
+
+            <!-- Floating '+' Add Lesson Spring Button -->
+            <button onclick="openLessonModal()" aria-label="הוסף שיעור" class="pointer-events-auto spring-btn w-14 h-14 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 text-white shadow-[0_10px_30px_rgba(56,189,248,0.45)] border border-white/40 flex items-center justify-center text-2xl">
+                <i class="ph-bold ph-plus"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 1: AI SCHEDULE IMAGE SCANNER (Gemini 2.5 Flash Vision)
+    ====================================================================== -->
+    <div id="scanner-modal" class="modal-backdrop fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="modal-sheet ios27-glass-heavy w-full max-w-lg rounded-t-[34px] sm:rounded-[34px] p-6 pb-[max(24px,var(--safe-bottom))] max-h-[92dvh] overflow-y-auto">
+            <!-- Drag Handle -->
+            <div class="w-10 h-1.5 bg-white/25 rounded-full mx-auto mb-5 sm:hidden"></div>
+
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-300">
+                        <i class="ph-fill ph-scan text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-extrabold">סריקת מערכת מתמונה</h2>
+                        <p class="text-xs text-white/60">זיהוי אוטומטי באמצעות בינה מלאכותית</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('scanner-modal')" class="spring-btn w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:text-white">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+
+            <!-- Upload / Preview Zone -->
+            <div id="scan-upload-zone" class="relative rounded-3xl border-2 border-dashed border-white/20 bg-white/[0.03] p-6 text-center transition-all hover:border-sky-400/50">
+                <input type="file" id="schedule-image-input" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                
+                <!-- Empty Upload Prompt -->
+                <div id="scan-empty-state" class="space-y-4">
+                    <div class="w-16 h-16 rounded-3xl bg-gradient-to-tr from-sky-500/20 to-purple-500/20 border border-white/15 mx-auto flex items-center justify-center">
+                        <i class="ph-duotone ph-image text-3xl text-sky-300"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm sm:text-base">צלם או העלה תמונה של המערכת</p>
+                        <p class="text-xs text-white/55 mt-1">צילום מסך ממשוב / וובטופ / אקסל או דף מודפס</p>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-2.5 justify-center pt-1">
+                        <button onclick="document.getElementById('schedule-image-input').click()" class="spring-btn px-5 py-3 rounded-2xl bg-white text-slate-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg">
+                            <i class="ph-bold ph-camera"></i>
+                            <span>בחר תמונה מהגלריה</span>
+                        </button>
+                        <button onclick="runDemoScan()" class="spring-btn px-4 py-3 rounded-2xl ios27-glass text-sky-300 font-semibold text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                            <i class="ph-fill ph-magic-wand"></i>
+                            <span>נסה סריקה לדוגמה</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Image Preview + Scanning Laser Overlay -->
+                <div id="scan-preview-state" class="hidden relative rounded-2xl overflow-hidden bg-black/40">
+                    <img id="scan-preview-img" src="" alt="תצוגה מקדימה" class="max-h-64 w-full object-contain mx-auto rounded-xl">
+                    
+                    <!-- Animated Spatial Scan Overlay -->
+                    <div id="scan-laser-overlay" class="hidden absolute inset-0 bg-sky-950/40 backdrop-blur-[2px] flex flex-col items-center justify-center">
+                        <div class="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-sky-400 to-transparent shadow-[0_0_20px_#38bdf8] animate-scan-beam"></div>
+                        <div class="ios27-glass-heavy px-4 py-2.5 rounded-2xl flex items-center gap-2.5">
+                            <i class="ph-bold ph-spinner-gap animate-spin text-sky-400 text-lg"></i>
+                            <span class="text-xs font-bold text-white">מפענח ימים, שעות וחדרים...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scanner Action Footer -->
+            <div id="scan-actions" class="hidden mt-4 flex gap-2.5">
+                <button onclick="resetScanner()" class="spring-btn flex-1 py-3 rounded-2xl ios27-glass text-xs sm:text-sm font-semibold text-white/80">
+                    החלף תמונה
+                </button>
+                <button id="btn-start-ai-scan" onclick="processUploadedSchedule()" class="spring-btn flex-[2] py-3 rounded-2xl bg-gradient-to-l from-sky-500 to-indigo-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-sky-500/25">
+                    <i class="ph-fill ph-sparkle"></i>
+                    <span>המר למערכת Glass</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 2: ADD / EDIT LESSON MODAL
+    ====================================================================== -->
+    <div id="lesson-modal" class="modal-backdrop fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="modal-sheet ios27-glass-heavy w-full max-w-lg rounded-t-[34px] sm:rounded-[34px] p-6 pb-[max(24px,var(--safe-bottom))] max-h-[92dvh] overflow-y-auto">
+            <div class="w-10 h-1.5 bg-white/25 rounded-full mx-auto mb-5 sm:hidden"></div>
+
+            <div class="flex items-center justify-between mb-5">
+                <h2 id="lesson-modal-title" class="text-lg font-extrabold">עריכת שיעור</h2>
+                <button onclick="closeModal('lesson-modal')" class="spring-btn w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white/70">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+
+            <form id="lesson-form" onsubmit="saveLessonForm(event)" class="space-y-4">
+                <input type="hidden" id="edit-lesson-id">
+
+                <!-- Day Selection -->
+                <div>
+                    <label class="block text-xs font-semibold text-white/70 mb-1.5">יום בשבוע</label>
+                    <select id="edit-day" class="w-full rounded-2xl bg-white/10 border border-white/15 px-3.5 py-3 text-sm font-semibold text-white focus:outline-none focus:border-sky-400">
+                        <option value="0" class="bg-slate-900">יום ראשון (א׳)</option>
+                        <option value="1" class="bg-slate-900">יום שני (ב׳)</option>
+                        <option value="2" class="bg-slate-900">יום שלישי (ג׳)</option>
+                        <option value="3" class="bg-slate-900">יום רביעי (ד׳)</option>
+                        <option value="4" class="bg-slate-900">יום חמישי (ה׳)</option>
+                        <option value="5" class="bg-slate-900">יום שישי (ו׳)</option>
+                    </select>
+                </div>
+
+                <!-- Subject Name -->
+                <div>
+                    <label class="block text-xs font-semibold text-white/70 mb-1.5">שם המקצוע / הקורס</label>
+                    <input type="text" id="edit-subject" required placeholder="לדוגמה: מתמטיקה 5 יח״ל" class="w-full rounded-2xl bg-white/10 border border-white/15 px-4 py-3 text-sm font-medium text-white placeholder-white/35 focus:outline-none focus:border-sky-400">
+                </div>
+
+                <!-- Start & End Time -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-white/70 mb-1.5">שעת התחלה</label>
+                        <input type="time" id="edit-start" required value="08:00" class="w-full rounded-2xl bg-white/10 border border-white/15 px-3.5 py-2.5 text-sm font-num font-semibold text-white focus:outline-none focus:border-sky-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-white/70 mb-1.5">שעת סיום</label>
+                        <input type="time" id="edit-end" required value="08:45" class="w-full rounded-2xl bg-white/10 border border-white/15 px-3.5 py-2.5 text-sm font-num font-semibold text-white focus:outline-none focus:border-sky-400">
+                    </div>
+                </div>
+
+                <!-- Room & Teacher -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-white/70 mb-1.5">חדר / מיקום</label>
+                        <input type="text" id="edit-room" placeholder="חדר 204 / מעבדה" class="w-full rounded-2xl bg-white/10 border border-white/15 px-3.5 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-sky-400">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-white/70 mb-1.5">מרצה / מורה</label>
+                        <input type="text" id="edit-teacher" placeholder="שם המורה" class="w-full rounded-2xl bg-white/10 border border-white/15 px-3.5 py-2.5 text-sm text-white placeholder-white/35 focus:outline-none focus:border-sky-400">
+                    </div>
+                </div>
+
+                <!-- iOS 27 Glass Color Tint Picker -->
+                <div>
+                    <label class="block text-xs font-semibold text-white/70 mb-2">גוון זכוכית (Glass Tint)</label>
+                    <div class="flex items-center gap-3" id="tint-picker">
+                        <button type="button" data-tint="blue" onclick="selectTint('blue')" class="tint-swatch w-9 h-9 rounded-full bg-sky-400/60 border-2 border-white scale-110 transition-transform"></button>
+                        <button type="button" data-tint="purple" onclick="selectTint('purple')" class="tint-swatch w-9 h-9 rounded-full bg-purple-400/60 border-2 border-transparent transition-transform"></button>
+                        <button type="button" data-tint="emerald" onclick="selectTint('emerald')" class="tint-swatch w-9 h-9 rounded-full bg-emerald-400/60 border-2 border-transparent transition-transform"></button>
+                        <button type="button" data-tint="amber" onclick="selectTint('amber')" class="tint-swatch w-9 h-9 rounded-full bg-amber-400/60 border-2 border-transparent transition-transform"></button>
+                        <button type="button" data-tint="rose" onclick="selectTint('rose')" class="tint-swatch w-9 h-9 rounded-full bg-rose-400/60 border-2 border-transparent transition-transform"></button>
+                        <button type="button" data-tint="cyan" onclick="selectTint('cyan')" class="tint-swatch w-9 h-9 rounded-full bg-cyan-400/60 border-2 border-transparent transition-transform"></button>
+                    </div>
+                    <input type="hidden" id="edit-tint" value="blue">
+                </div>
+
+                <!-- Form Buttons -->
+                <div class="pt-3 flex items-center gap-2.5">
+                    <button type="button" id="btn-delete-lesson" onclick="deleteCurrentLesson()" class="hidden spring-btn px-4 py-3.5 rounded-2xl bg-rose-500/20 border border-rose-400/30 text-rose-300 font-bold text-xs sm:text-sm">
+                        <i class="ph-bold ph-trash"></i>
+                    </button>
+                    <button type="submit" class="spring-btn flex-1 py-3.5 rounded-2xl bg-gradient-to-l from-sky-500 to-indigo-500 text-white font-bold text-sm shadow-lg shadow-sky-500/25">
+                        שמור שינויים
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         MODAL 3: ADD TO IPHONE HOME SCREEN GUIDE (PWA)
+    ====================================================================== -->
+    <div id="pwa-modal" class="modal-backdrop fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="modal-sheet ios27-glass-heavy w-full max-w-md rounded-t-[34px] sm:rounded-[34px] p-6 pb-[max(24px,var(--safe-bottom))]">
+            <div class="w-10 h-1.5 bg-white/25 rounded-full mx-auto mb-5 sm:hidden"></div>
+
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <img id="pwa-preview-icon" src="" alt="App Icon" class="w-12 h-12 rounded-2xl shadow-lg border border-white/25">
+                    <div>
+                        <h2 class="text-lg font-extrabold">הוסף למסך הבית</h2>
+                        <p class="text-xs text-white/60">הפוך את האתר לאפליקציית אייפון מלאה</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('pwa-modal')" class="spring-btn w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white/70">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 my-5 text-sm">
+                <div class="ios27-glass p-3.5 rounded-2xl flex items-center gap-3.5">
+                    <div class="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-300 font-bold flex items-center justify-center shrink-0">1</div>
+                    <p class="text-white/90 text-xs sm:text-sm">פתח את העמוד בדפדפן <strong>Safari</strong> באייפון שלך.</p>
+                </div>
+                <div class="ios27-glass p-3.5 rounded-2xl flex items-center gap-3.5">
+                    <div class="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-300 font-bold flex items-center justify-center shrink-0">2</div>
+                    <p class="text-white/90 text-xs sm:text-sm">לחץ על כפתור ה<strong>שיתוף</strong> <span class="inline-flex items-center justify-center px-1.5 py-0.5 bg-white/15 rounded text-sky-300 mx-0.5"><i class="ph-bold ph-export"></i></span> בתחתית המסך.</p>
+                </div>
+                <div class="ios27-glass p-3.5 rounded-2xl flex items-center gap-3.5">
+                    <div class="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-300 font-bold flex items-center justify-center shrink-0">3</div>
+                    <p class="text-white/90 text-xs sm:text-sm">גלול מטה ובחר ב-<strong>"הוסף למסך הבית"</strong> (Add to Home Screen).</p>
+                </div>
+            </div>
+
+            <button onclick="closeModal('pwa-modal')" class="spring-btn w-full py-3.5 rounded-2xl bg-white text-slate-950 font-bold text-sm">
+                הבנתי, מעולה!
+            </button>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         TOAST NOTIFICATION (Non-blocking iOS Glass Banner)
+    ====================================================================== -->
+    <div id="toast-banner" class="fixed top-14 inset-x-0 z-50 flex justify-center pointer-events-none px-4 transition-all duration-300 opacity-0 -translate-y-4">
+        <div class="ios27-glass-heavy px-4 py-2.5 rounded-full flex items-center gap-2.5 text-xs sm:text-sm font-semibold shadow-2xl border-white/25">
+            <i id="toast-icon" class="ph-fill ph-check-circle text-emerald-400 text-lg"></i>
+            <span id="toast-text">המערכת עודכנה בהצלחה</span>
+        </div>
+    </div>
+
+    <script>
+        /* =====================================================================
+           1. STATE & CONSTANTS
+        ===================================================================== */
+        const DAYS_HEB = [
+            { index: 0, short: 'א׳', full: 'יום ראשון' },
+            { index: 1, short: 'ב׳', full: 'יום שני' },
+            { index: 2, short: 'ג׳', full: 'יום שלישי' },
+            { index: 3, short: 'ד׳', full: 'יום רביעי' },
+            { index: 4, short: 'ה׳', full: 'יום חמישי' },
+            { index: 5, short: 'ו׳', full: 'יום שישי' }
+        ];
+
+        const STORAGE_KEY = 'ios27_glass_schedule_v1';
+
+        const DEFAULT_SCHEDULE = [
+            // יום ראשון (0)
+            { id: '1', day: 0, subject: 'מתמטיקה 5 יח״ל', start: '08:00', end: '09:30', room: 'חדר 302', teacher: 'ד״ר רונית כהן', tint: 'blue' },
+            { id: '2', day: 0, subject: 'פיזיקה - מכניקה', start: '09:45', end: '11:15', room: 'מעבדה 2', teacher: 'יואב לוי', tint: 'purple' },
+            { id: '3', day: 0, subject: 'אנגלית דוברים', start: '11:30', end: '13:00', room: 'חדר 108', teacher: 'שרה מילר', tint: 'emerald' },
+            // יום שני (1)
+            { id: '4', day: 1, subject: 'מדעי המחשב (AI)', start: '08:30', end: '10:00', room: 'מעבדת מחשבים א׳', teacher: 'איתי ברק', tint: 'cyan' },
+            { id: '5', day: 1, subject: 'ספרות והבעה', start: '10:15', end: '11:45', room: 'חדר 204', teacher: 'מיכל אברהמי', tint: 'amber' },
+            { id: '6', day: 1, subject: 'חינוך גופני', start: '12:00', end: '13:30', room: 'אולם ספורט', teacher: 'גיא פרץ', tint: 'rose' },
+            // יום שלישי (2)
+            { id: '7', day: 2, subject: 'מתמטיקה 5 יח״ל', start: '08:00', end: '09:30', room: 'חדר 302', teacher: 'ד״ר רונית כהן', tint: 'blue' },
+            { id: '8', day: 2, subject: 'היסטוריה כללית', start: '09:45', end: '11:15', room: 'חדר 112', teacher: 'עומר שפירא', tint: 'amber' },
+            { id: '9', day: 2, subject: 'פרויקט גמר הנדסת תוכנה', start: '11:30', end: '13:45', room: 'חממת הייטק', teacher: 'איתי ברק', tint: 'purple' },
+            // יום רביעי (3)
+            { id: '10', day: 3, subject: 'פיזיקה - חשמל', start: '08:00', end: '09:30', room: 'מעבדה 2', teacher: 'יואב לוי', tint: 'purple' },
+            { id: '11', day: 3, subject: 'אזרחות', start: '09:45', end: '11:15', room: 'חדר 201', teacher: 'נועה גולן', tint: 'rose' },
+            { id: '12', day: 3, subject: 'אנגלית דוברים', start: '11:30', end: '13:00', room: 'חדר 108', teacher: 'שרה מילר', tint: 'emerald' },
+            { id: '13', day: 3, subject: 'סדנת יזמות וחדשנות', start: '13:15', end: '14:45', room: 'אודיטוריום', teacher: 'אלון כץ', tint: 'cyan' },
+            // יום חמישי (4)
+            { id: '14', day: 4, subject: 'מדעי המחשב (AI)', start: '08:30', end: '10:45', room: 'מעבדת מחשבים א׳', teacher: 'איתי ברק', tint: 'cyan' },
+            { id: '15', day: 4, subject: 'תנ״ך', start: '11:00', end: '12:30', room: 'חדר 105', teacher: 'רחל דוד', tint: 'amber' },
+            // יום שישי (5)
+            { id: '16', day: 5, subject: 'תגבור מתמטיקה', start: '08:30', end: '10:00', room: 'חדר 302', teacher: 'ד״ר רונית כהן', tint: 'blue' },
+            { id: '17', day: 5, subject: 'שעת חינוך וסיכום שבוע', start: '10:15', end: '11:15', room: 'חדר 204', teacher: 'מיכל אברהמי', tint: 'emerald' }
+        ];
+
+        let lessons = [];
+        let selectedDay = new Date().getDay(); // 0 = Sunday ... 6 = Saturday
+        if (selectedDay > 5) selectedDay = 0; // Default Saturday to Sunday
+        let viewMode = 'day'; // 'day' | 'week'
+        let uploadedBase64 = null;
+        let uploadedMimeType = 'image/jpeg';
+
+        /* =====================================================================
+           2. PWA TOUCH ICON & MANIFEST GENERATOR (Canvas -> Data URL)
+        ===================================================================== */
+        function generatePwaAssets() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Cosmic Gradient Background
+            const grad = ctx.createLinearGradient(0, 0, 512, 512);
+            grad.addColorStop(0, '#0f172a');
+            grad.addColorStop(0.5, '#1e1b4b');
+            grad.addColorStop(1, '#312e81');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Glowing Orbs
+            const orb1 = ctx.createRadialGradient(140, 140, 10, 140, 140, 220);
+            orb1.addColorStop(0, 'rgba(56, 189, 248, 0.65)');
+            orb1.addColorStop(1, 'rgba(56, 189, 248, 0)');
+            ctx.fillStyle = orb1;
+            ctx.fillRect(0, 0, 512, 512);
+
+            const orb2 = ctx.createRadialGradient(390, 390, 10, 390, 390, 220);
+            orb2.addColorStop(0, 'rgba(217, 70, 239, 0.55)');
+            orb2.addColorStop(1, 'rgba(217, 70, 239, 0)');
+            ctx.fillStyle = orb2;
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Frosted Glass Rounded Square Card
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.lineWidth = 6;
+            roundRect(ctx, 96, 96, 320, 320, 72);
+            ctx.fill();
+            ctx.stroke();
+
+            // Calendar Header Bar
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+            roundRect(ctx, 136, 142, 240, 52, 18);
+            ctx.fill();
+
+            // Grid Bars
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            roundRect(ctx, 136, 222, 145, 26, 13);
+            ctx.fill();
+            roundRect(ctx, 136, 270, 240, 26, 13);
+            ctx.fill();
+            roundRect(ctx, 136, 318, 190, 26, 13);
+            ctx.fill();
+
+            const iconDataUrl = canvas.toDataURL('image/png');
+            document.getElementById('apple-touch-icon').href = iconDataUrl;
+            const previewEl = document.getElementById('pwa-preview-icon');
+            if (previewEl) previewEl.src = iconDataUrl;
+
+            // Dynamic Web Manifest
+            const manifest = {
+                name: 'המערכת שלי • iOS 27 Glass',
+                short_name: 'המערכת שלי',
+                start_url: '.',
+                display: 'standalone',
+                background_color: '#060711',
+                theme_color: '#060711',
+                icons: [{ src: iconDataUrl, sizes: '512x512', type: 'image/png' }]
+            };
+            const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+            document.getElementById('app-manifest').href = URL.createObjectURL(manifestBlob);
+        }
+
+        function roundRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+
+        /* =====================================================================
+           3. STORAGE & INITIALIZATION
+        ===================================================================== */
+        function loadSchedule() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    lessons = JSON.parse(saved);
+                } else {
+                    lessons = [...DEFAULT_SCHEDULE];
+                    saveSchedule();
+                }
+            } catch (e) {
+                lessons = [...DEFAULT_SCHEDULE];
+            }
+        }
+
+        function saveSchedule() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(lessons));
+            } catch (e) {
+                console.warn('LocalStorage unavailable');
+            }
+        }
+
+        /* =====================================================================
+           4. RENDERING UI (Day Pills, Live Status, Day View, Week Matrix)
+        ===================================================================== */
+        function updateHeaderDate() {
+            const now = new Date();
+            const options = { weekday: 'long', day: 'numeric', month: 'long' };
+            const formatted = now.toLocaleDateString('he-IL', options);
+            document.getElementById('header-date').textContent = formatted;
+        }
+
+        function renderDayPills() {
+            const container = document.getElementById('day-pills');
+            const todayIdx = new Date().getDay();
+
+            container.innerHTML = DAYS_HEB.map(d => {
+                const isSelected = d.index === selectedDay;
+                const isToday = d.index === todayIdx;
+                return `
+                    <button onclick="selectDay(${d.index})" class="spring-btn relative py-2.5 rounded-2xl flex flex-col items-center justify-center transition-all ${
+                        isSelected 
+                            ? 'bg-white/20 border border-white/30 text-white shadow-md backdrop-blur-md font-extrabold' 
+                            : 'text-white/60 hover:text-white/90 font-medium'
+                    }">
+                        <span class="text-sm">${d.short}</span>
+                        <span class="w-1.5 h-1.5 rounded-full mt-1 ${isToday ? 'bg-sky-400 shadow-[0_0_8px_#38bdf8]' : 'bg-transparent'}"></span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function timeToMinutes(timeStr) {
+            if (!timeStr) return 0;
+            const [h, m] = timeStr.split(':').map(Number);
+            return h * 60 + m;
+        }
+
+        function updateDynamicIslandAndSpotlight() {
+            const now = new Date();
+            const currentDay = now.getDay();
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+
+            const todayLessons = lessons
+                .filter(l => Number(l.day) === currentDay)
+                .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+            let activeLesson = null;
+            let nextLesson = null;
+
+            for (const lesson of todayLessons) {
+                const s = timeToMinutes(lesson.start);
+                const e = timeToMinutes(lesson.end);
+                if (nowMins >= s && nowMins <= e) {
+                    activeLesson = lesson;
+                    break;
+                }
+                if (s > nowMins && !nextLesson) {
+                    nextLesson = lesson;
+                }
+            }
+
+            const statusLabel = document.getElementById('island-status-label');
+            const subjectEl = document.getElementById('island-subject');
+            const timeEl = document.getElementById('island-time');
+            const dotEl = document.getElementById('island-dot');
+            const pingEl = document.getElementById('island-ping');
+            const spotlightContainer = document.getElementById('live-widget-container');
+
+            if (activeLesson) {
+                const s = timeToMinutes(activeLesson.start);
+                const e = timeToMinutes(activeLesson.end);
+                const progress = Math.min(100, Math.max(5, Math.round(((nowMins - s) / (e - s)) * 100)));
+                const minsLeft = e - nowMins;
+
+                statusLabel.textContent = 'בשיעור:';
+                subjectEl.textContent = activeLesson.subject;
+                timeEl.textContent = `עוד ${minsLeft} דק׳`;
+                dotEl.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400';
+                pingEl.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+
+                if (viewMode === 'day' && selectedDay === currentDay) {
+                    spotlightContainer.classList.remove('hidden');
+                    spotlightContainer.innerHTML = `
+                        <div onclick="openLessonModal('${activeLesson.id}')" class="ios27-card ios27-glass tint-${activeLesson.tint || 'blue'} rounded-[28px] p-4 cursor-pointer">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    מתקיים כעת
+                                </span>
+                                <span class="font-num text-xs font-bold text-white/80">${activeLesson.start} - ${activeLesson.end}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-lg font-extrabold text-white">${escapeHtml(activeLesson.subject)}</h3>
+                                    <p class="text-xs text-white/75 mt-0.5 flex items-center gap-2">
+                                        <span><i class="ph-fill ph-map-pin text-sky-300"></i> ${escapeHtml(activeLesson.room || 'לא צוין חדר')}</span>
+                                        <span>•</span>
+                                        <span>${escapeHtml(activeLesson.teacher || '')}</span>
+                                    </p>
+                                </div>
+                                <div class="text-left">
+                                    <span class="text-xl font-num font-black text-white">${minsLeft}</span>
+                                    <span class="block text-[10px] text-white/60">דק׳ לסיום</span>
+                                </div>
+                            </div>
+                            <!-- Liquid Glass Progress Bar -->
+                            <div class="mt-3 h-2 w-full rounded-full bg-black/30 overflow-hidden p-[1px]">
+                                <div class="h-full rounded-full bg-gradient-to-l from-emerald-300 to-sky-400 transition-all duration-700" style="width: ${progress}%"></div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    spotlightContainer.classList.add('hidden');
+                }
+            } else if (nextLesson) {
+                const minsToStart = timeToMinutes(nextLesson.start) - nowMins;
+                statusLabel.textContent = 'הבא:';
+                subjectEl.textContent = nextLesson.subject;
+                timeEl.textContent = nextLesson.start;
+                dotEl.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-400';
+                pingEl.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75';
+
+                if (viewMode === 'day' && selectedDay === currentDay && minsToStart <= 90) {
+                    spotlightContainer.classList.remove('hidden');
+                    spotlightContainer.innerHTML = `
+                        <div onclick="openLessonModal('${nextLesson.id}')" class="ios27-card ios27-glass rounded-[26px] p-3.5 flex items-center justify-between cursor-pointer border-sky-300/25">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-300 font-num font-bold text-xs">
+                                    ${nextLesson.start}
+                                </div>
+                                <div>
+                                    <span class="text-[11px] font-semibold text-sky-300">השיעור הבא בעוד ${minsToStart} דקות</span>
+                                    <h4 class="font-bold text-sm text-white">${escapeHtml(nextLesson.subject)}</h4>
+                                </div>
+                            </div>
+                            <span class="text-xs bg-white/10 px-2.5 py-1 rounded-xl text-white/80">${escapeHtml(nextLesson.room || '')}</span>
+                        </div>
+                    `;
+                } else {
+                    spotlightContainer.classList.add('hidden');
+                }
+            } else {
+                statusLabel.textContent = 'סטטוס:';
+                subjectEl.textContent = 'יום פנוי משיעורים ✨';
+                timeEl.textContent = now.toTimeString().slice(0, 5);
+                dotEl.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-400';
+                pingEl.className = 'hidden';
+                spotlightContainer.classList.add('hidden');
+            }
+        }
+
+        function renderSchedule() {
+            const container = document.getElementById('schedule-container');
+            updateDynamicIslandAndSpotlight();
+
+            if (viewMode === 'day') {
+                const dayLessons = lessons
+                    .filter(l => Number(l.day) === Number(selectedDay))
+                    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+                document.getElementById('footer-count').textContent = `${dayLessons.length} שיעורים ב${DAYS_HEB[selectedDay].full}`;
+
+                if (dayLessons.length === 0) {
+                    container.innerHTML = `
+                        <div class="ios27-glass rounded-[32px] p-10 text-center space-y-3 my-4">
+                            <div class="w-16 h-16 rounded-3xl bg-white/10 mx-auto flex items-center justify-center text-3xl text-sky-300">
+                                <i class="ph-duotone ph-sun-horizon"></i>
+                            </div>
+                            <h3 class="text-lg font-bold">אין שיעורים ב${DAYS_HEB[selectedDay].full}</h3>
+                            <p class="text-xs text-white/60 max-w-xs mx-auto">לחץ על כפתור ה- + למטה כדי להוסיף שיעור ידנית, או סרוק תמונה של המערכת שלך.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = dayLessons.map((lesson, idx) => {
+                    const tint = lesson.tint || 'blue';
+                    return `
+                        <div onclick="openLessonModal('${lesson.id}')" class="ios27-card ios27-glass tint-${tint} rounded-[26px] p-4 flex items-center gap-3.5 cursor-pointer group">
+                            <!-- Time Column -->
+                            <div class="flex flex-col items-center justify-center min-w-[64px] py-1.5 px-2 rounded-2xl bg-black/25 border border-white/10 font-num">
+                                <span class="text-sm font-bold text-white">${escapeHtml(lesson.start)}</span>
+                                <div class="w-3 h-[1px] bg-white/25 my-1"></div>
+                                <span class="text-xs font-medium text-white/60">${escapeHtml(lesson.end)}</span>
+                            </div>
+
+                            <!-- Lesson Info -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-white/10 text-white/75">שיעור ${idx + 1}</span>
+                                    ${lesson.room ? `<span class="text-xs font-semibold text-white/80 truncate flex items-center gap-1"><i class="ph-fill ph-map-pin text-xs opacity-80"></i>${escapeHtml(lesson.room)}</span>` : ''}
+                                </div>
+                                <h3 class="text-base sm:text-lg font-extrabold text-white truncate mt-1">${escapeHtml(lesson.subject)}</h3>
+                                ${lesson.teacher ? `<p class="text-xs text-white/65 truncate mt-0.5 flex items-center gap-1"><i class="ph ph-user"></i> ${escapeHtml(lesson.teacher)}</p>` : ''}
+                            </div>
+
+                            <!-- Edit Chevron -->
+                            <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 group-hover:text-white group-hover:bg-white/20 transition-all shrink-0">
+                                <i class="ph-bold ph-pencil-simple text-sm"></i>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } else {
+                // FULL WEEKLY MATRIX VIEW
+                document.getElementById('footer-count').textContent = `${lessons.length} שיעורים בשבוע`;
+
+                container.innerHTML = `
+                    <div class="overflow-x-auto no-scrollbar -mx-4 px-4 pb-4">
+                        <div class="grid grid-cols-6 gap-2.5 min-w-[760px]">
+                            ${DAYS_HEB.map(dayObj => {
+                                const dayItems = lessons
+                                    .filter(l => Number(l.day) === dayObj.index)
+                                    .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+                                const isToday = dayObj.index === new Date().getDay();
+
+                                return `
+                                    <div class="ios27-glass rounded-[26px] p-2.5 flex flex-col gap-2 ${isToday ? 'border-sky-400/50 bg-sky-500/[0.07]' : ''}">
+                                        <div class="text-center py-1.5 rounded-xl ${isToday ? 'bg-sky-400/20 text-sky-200' : 'bg-white/5 text-white/80'} font-bold text-xs flex items-center justify-center gap-1.5">
+                                            <span>${dayObj.full}</span>
+                                            ${isToday ? '<span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>' : ''}
+                                        </div>
+
+                                        <div class="space-y-2 flex-1">
+                                            ${dayItems.length === 0 ? `
+                                                <div class="h-24 rounded-2xl border border-dashed border-white/10 flex items-center justify-center text-[11px] text-white/30">
+                                                    פנוי
+                                                </div>
+                                            ` : dayItems.map(item => `
+                                                <div onclick="openLessonModal('${item.id}')" class="ios27-card ios27-glass tint-${item.tint || 'blue'} rounded-2xl p-2.5 cursor-pointer">
+                                                    <div class="font-num text-[10px] font-bold text-white/75 mb-1">${item.start} - ${item.end}</div>
+                                                    <div class="font-bold text-xs text-white leading-snug line-clamp-2">${escapeHtml(item.subject)}</div>
+                                                    ${item.room ? `<div class="text-[10px] text-white/65 mt-1 truncate">${escapeHtml(item.room)}</div>` : ''}
+                                                </div>
+                                            `).join('')}
+                                        </div>
+
+                                        <button onclick="openLessonModal(null, ${dayObj.index})" class="spring-btn w-full py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-white/60 hover:text-white text-xs flex items-center justify-center">
+                                            <i class="ph-bold ph-plus"></i>
+                                        </button>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        /* =====================================================================
+           5. NAVIGATION & INTERACTIONS
+        ===================================================================== */
+        function selectDay(dayIndex) {
+            selectedDay = dayIndex;
+            renderDayPills();
+            renderSchedule();
+        }
+
+        function jumpToToday() {
+            const today = new Date().getDay();
+            selectedDay = today > 5 ? 0 : today;
+            setViewMode('day');
+            showToast('חזרת ליום הנוכחי', 'calendar-check');
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            const indicator = document.getElementById('view-indicator');
+            const btnDay = document.getElementById('btn-view-day');
+            const btnWeek = document.getElementById('btn-view-week');
+            const daySelector = document.getElementById('day-selector-container');
+
+            if (mode === 'day') {
+                indicator.style.transform = 'translateX(0%)';
+                btnDay.classList.replace('text-white/60', 'text-white');
+                btnWeek.classList.replace('text-white', 'text-white/60');
+                daySelector.classList.remove('hidden');
+            } else {
+                indicator.style.transform = 'translateX(-100%)';
+                btnWeek.classList.replace('text-white/60', 'text-white');
+                btnDay.classList.replace('text-white', 'text-white/60');
+                daySelector.classList.add('hidden');
+            }
+            renderSchedule();
+        }
+
+        function toggleIslandExpand() {
+            const island = document.getElementById('dynamic-island');
+            island.classList.toggle('scale-105');
+            setTimeout(() => island.classList.remove('scale-105'), 250);
+            jumpToToday();
+        }
+
+        /* =====================================================================
+           6. LESSON CRUD MODAL LOGIC
+        ===================================================================== */
+        function openLessonModal(lessonId = null, defaultDay = null) {
+            const modalTitle = document.getElementById('lesson-modal-title');
+            const idInput = document.getElementById('edit-lesson-id');
+            const daySelect = document.getElementById('edit-day');
+            const subjectInput = document.getElementById('edit-subject');
+            const startInput = document.getElementById('edit-start');
+            const endInput = document.getElementById('edit-end');
+            const roomInput = document.getElementById('edit-room');
+            const teacherInput = document.getElementById('edit-teacher');
+            const deleteBtn = document.getElementById('btn-delete-lesson');
+
+            if (lessonId) {
+                const lesson = lessons.find(l => l.id === lessonId);
+                if (!lesson) return;
+                modalTitle.textContent = 'עריכת שיעור';
+                idInput.value = lesson.id;
+                daySelect.value = lesson.day;
+                subjectInput.value = lesson.subject;
+                startInput.value = lesson.start;
+                endInput.value = lesson.end;
+                roomInput.value = lesson.room || '';
+                teacherInput.value = lesson.teacher || '';
+                selectTint(lesson.tint || 'blue');
+                deleteBtn.classList.remove('hidden');
+            } else {
+                modalTitle.textContent = 'הוספת שיעור חדש';
+                idInput.value = '';
+                daySelect.value = defaultDay !== null ? defaultDay : selectedDay;
+                subjectInput.value = '';
+                startInput.value = '08:00';
+                endInput.value = '09:30';
+                roomInput.value = '';
+                teacherInput.value = '';
+                selectTint('blue');
+                deleteBtn.classList.add('hidden');
+            }
+
+            openModal('lesson-modal');
+        }
+
+        function selectTint(tintName) {
+            document.getElementById('edit-tint').value = tintName;
+            document.querySelectorAll('.tint-swatch').forEach(btn => {
+                if (btn.dataset.tint === tintName) {
+                    btn.classList.add('border-white', 'scale-110');
+                    btn.classList.remove('border-transparent');
+                } else {
+                    btn.classList.remove('border-white', 'scale-110');
+                    btn.classList.add('border-transparent');
+                }
+            });
+        }
+
+        function saveLessonForm(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-lesson-id').value;
+            const day = Number(document.getElementById('edit-day').value);
+            const subject = document.getElementById('edit-subject').value.trim();
+            const start = document.getElementById('edit-start').value;
+            const end = document.getElementById('edit-end').value;
+            const room = document.getElementById('edit-room').value.trim();
+            const teacher = document.getElementById('edit-teacher').value.trim();
+            const tint = document.getElementById('edit-tint').value;
+
+            if (!subject) return;
+
+            if (id) {
+                const index = lessons.findIndex(l => l.id === id);
+                if (index !== -1) {
+                    lessons[index] = { id, day, subject, start, end, room, teacher, tint };
+                }
+                showToast('השיעור עודכן בהצלחה');
+            } else {
+                const newLesson = {
+                    id: Date.now().toString(),
+                    day, subject, start, end, room, teacher, tint
+                };
+                lessons.push(newLesson);
+                showToast('שיעור חדש נוסף למערכת');
+            }
+
+            selectedDay = day;
+            saveSchedule();
+            renderDayPills();
+            renderSchedule();
+            closeModal('lesson-modal');
+        }
+
+        function deleteCurrentLesson() {
+            const id = document.getElementById('edit-lesson-id').value;
+            if (!id) return;
+            lessons = lessons.filter(l => l.id !== id);
+            saveSchedule();
+            renderSchedule();
+            closeModal('lesson-modal');
+            showToast('השיעור נמחק', 'trash');
+        }
+
+        /* =====================================================================
+           7. AI SCHEDULE IMAGE SCANNER (Gemini 2.5 Flash Vision API)
+        ===================================================================== */
+        function openScannerModal() {
+            resetScanner();
+            openModal('scanner-modal');
+        }
+
+        function resetScanner() {
+            uploadedBase64 = null;
+            document.getElementById('schedule-image-input').value = '';
+            document.getElementById('scan-empty-state').classList.remove('hidden');
+            document.getElementById('scan-preview-state').classList.add('hidden');
+            document.getElementById('scan-laser-overlay').classList.add('hidden');
+            document.getElementById('scan-actions').classList.add('hidden');
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            uploadedMimeType = file.type || 'image/jpeg';
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                uploadedBase64 = dataUrl.split(',')[1];
+                document.getElementById('scan-preview-img').src = dataUrl;
+                document.getElementById('scan-empty-state').classList.add('hidden');
+                document.getElementById('scan-preview-state').classList.remove('hidden');
+                document.getElementById('scan-actions').classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function processUploadedSchedule() {
+            if (!uploadedBase64) return;
+
+            const laser = document.getElementById('scan-laser-overlay');
+            const scanBtn = document.getElementById('btn-start-ai-scan');
+            laser.classList.remove('hidden');
+            scanBtn.disabled = true;
+            scanBtn.classList.add('opacity-60');
+
+            const prompt = `Analyze this image of a weekly school/university timetable (מערכת שעות).
+Extract every lesson/class visible in the schedule and map it to a structured JSON array.
+Rules:
+- "day": integer from 0 to 5 where 0 = Sunday (ראשון), 1 = Monday (שני), 2 = Tuesday (שלישי), 3 = Wednesday (רביעי), 4 = Thursday (חמישי), 5 = Friday (שישי).
+- "subject": string (name of the subject/course in Hebrew as shown, or translated cleanly if needed).
+- "start": string in 24h HH:MM format (e.g., "08:00"). If only lesson period numbers are shown (e.g. שעה 1), estimate standard school hours ("08:00" to "08:45", etc.).
+- "end": string in 24h HH:MM format (e.g., "08:45").
+- "room": string (room number or location if visible, otherwise empty string "").
+- "teacher": string (teacher/lecturer name if visible, otherwise empty string "").
+- "tint": choose one of "blue", "purple", "emerald", "amber", "rose", "cyan" consistently per subject.`;
+
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: prompt },
+                        {
+                            inlineData: {
+                                mimeType: uploadedMimeType,
+                                data: uploadedBase64
+                            }
+                        }
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                day: { type: "INTEGER" },
+                                subject: { type: "STRING" },
+                                start: { type: "STRING" },
+                                end: { type: "STRING" },
+                                room: { type: "STRING" },
+                                teacher: { type: "STRING" },
+                                tint: { type: "STRING" }
+                            },
+                            required: ["day", "subject", "start", "end"]
+                        }
+                    }
+                }
+            };
+
+            try {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetchWithBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (!jsonText) throw new Error('No structured output returned');
+
+                const extracted = JSON.parse(jsonText);
+                if (Array.isArray(extracted) && extracted.length > 0) {
+                    const validTints = ['blue', 'purple', 'emerald', 'amber', 'rose', 'cyan'];
+                    lessons = extracted.map((item, idx) => ({
+                        id: 'ai_' + Date.now() + '_' + idx,
+                        day: Math.min(5, Math.max(0, Number(item.day) || 0)),
+                        subject: item.subject || 'שיעור',
+                        start: item.start || '08:00',
+                        end: item.end || '08:45',
+                        room: item.room || '',
+                        teacher: item.teacher || '',
+                        tint: validTints.includes(item.tint) ? item.tint : validTints[idx % validTints.length]
+                    }));
+
+                    saveSchedule();
+                    renderDayPills();
+                    renderSchedule();
+                    closeModal('scanner-modal');
+                    showToast(`זוהו ${lessons.length} שיעורים מהתמונה! ✨`);
+                } else {
+                    throw new Error('Empty schedule extracted');
+                }
+            } catch (err) {
+                showToast('לא הצלחנו לפענח את התמונה, נסה תמונה ברורה יותר', 'warning-circle');
+            } finally {
+                laser.classList.add('hidden');
+                scanBtn.disabled = false;
+                scanBtn.classList.remove('opacity-60');
+            }
+        }
+
+        async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                const res = await fetch(url, options);
+                if (res.ok) return res;
+                if (res.status === 429 || res.status >= 500) {
+                    await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+                    continue;
+                }
+                throw new Error(`HTTP ${res.status}`);
+            }
+            throw new Error('Max retries reached');
+        }
+
+        /* Demo Image Generator & Instant AI Simulation Flow */
+        function runDemoScan() {
+            // Generate a realistic Hebrew timetable image on an offscreen canvas so the user sees the real scanning visual
+            const c = document.createElement('canvas');
+            c.width = 700;
+            c.height = 440;
+            const ctx = c.getContext('2d');
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(0, 0, 700, 440);
+
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 22px Heebo, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('מערכת שעות שבועית - כיתה י״ב 3 (משוב)', 350, 42);
+
+            const cols = ['שישי', 'חמישי', 'רביעי', 'שלישי', 'שני', 'ראשון'];
+            const colW = 108;
+            cols.forEach((col, i) => {
+                const x = 26 + i * colW;
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(x, 65, colW - 4, 34);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 14px Heebo, sans-serif';
+                ctx.fillText(col, x + (colW - 4) / 2, 87);
+            });
+
+            const sampleBlocks = [
+                { col: 5, row: 0, title: 'אלגברה לינארית', sub: '08:30 • חדר 401', color: '#dbeafe' },
+                { col: 5, row: 1, title: 'מבוא לבינה מלאכותית', sub: '10:15 • מעבדה 1', color: '#f3e8ff' },
+                { col: 4, row: 0, title: 'פיזיקה קוונטית', sub: '08:30 • אולם ב׳', color: '#d1fae5' },
+                { col: 4, row: 1, title: 'אנגלית אקדמית', sub: '10:15 • חדר 109', color: '#fef3c7' },
+                { col: 3, row: 0, title: 'עיצוב ממשק משתמש', sub: '09:00 • סטודיו', color: '#ffe4e6' },
+                { col: 2, row: 0, title: 'אלגברה לינארית', sub: '08:30 • חדר 401', color: '#dbeafe' },
+                { col: 2, row: 1, title: 'אזרחות ודמוקרטיה', sub: '10:15 • חדר 202', color: '#cffafe' },
+                { col: 1, row: 0, title: 'סדנת פיתוח iOS', sub: '09:00 • חממה', color: '#f3e8ff' },
+                { col: 0, row: 0, title: 'סיכום שבועי', sub: '09:00 • כיתת אם', color: '#d1fae5' }
+            ];
+
+            sampleBlocks.forEach(b => {
+                const x = 26 + b.col * colW;
+                const y = 106 + b.row * 95;
+                ctx.fillStyle = b.color;
+                ctx.fillRect(x, y, colW - 4, 86);
+                ctx.strokeStyle = '#94a3b8';
+                ctx.strokeRect(x, y, colW - 4, 86);
+
+                ctx.fillStyle = '#0f172a';
+                ctx.font = 'bold 12px Heebo, sans-serif';
+                ctx.fillText(b.title, x + (colW - 4) / 2, y + 34);
+                ctx.fillStyle = '#475569';
+                ctx.font = '11px Heebo, sans-serif';
+                ctx.fillText(b.sub, x + (colW - 4) / 2, y + 58);
+            });
+
+            const demoDataUrl = c.toDataURL('image/png');
+            document.getElementById('scan-preview-img').src = demoDataUrl;
+            document.getElementById('scan-empty-state').classList.add('hidden');
+            document.getElementById('scan-preview-state').classList.remove('hidden');
+            document.getElementById('scan-laser-overlay').classList.remove('hidden');
+
+            // Simulate spatial AI extraction sequence
+            setTimeout(() => {
+                lessons = [
+                    { id: 'demo1', day: 0, subject: 'אלגברה לינארית', start: '08:30', end: '10:00', room: 'חדר 401', teacher: 'פרופ׳ דניאל רז', tint: 'blue' },
+                    { id: 'demo2', day: 0, subject: 'מבוא לבינה מלאכותית', start: '10:15', end: '12:00', room: 'מעבדה 1', teacher: 'ד״ר מאיה שרון', tint: 'purple' },
+                    { id: 'demo3', day: 1, subject: 'פיזיקה קוונטית', start: '08:30', end: '10:00', room: 'אולם ב׳', teacher: 'יואב לוי', tint: 'emerald' },
+                    { id: 'demo4', day: 1, subject: 'אנגלית אקדמית', start: '10:15', end: '11:45', room: 'חדר 109', teacher: 'שרה מילר', tint: 'amber' },
+                    { id: 'demo5', day: 2, subject: 'עיצוב ממשק משתמש (UI)', start: '09:00', end: '11:30', room: 'סטודיו Glass', teacher: 'נועה ברק', tint: 'rose' },
+                    { id: 'demo6', day: 3, subject: 'אלגברה לינארית', start: '08:30', end: '10:00', room: 'חדר 401', teacher: 'פרופ׳ דניאל רז', tint: 'blue' },
+                    { id: 'demo7', day: 3, subject: 'אזרחות ודמוקרטיה', start: '10:15', end: '11:45', room: 'חדר 202', teacher: 'עומר שפירא', tint: 'cyan' },
+                    { id: 'demo8', day: 4, subject: 'סדנת פיתוח אפליקציות iOS', start: '09:00', end: '12:00', room: 'חממת הייטק', teacher: 'איתי כץ', tint: 'purple' },
+                    { id: 'demo9', day: 5, subject: 'סיכום שבועי ומנטורינג', start: '09:00', end: '10:30', room: 'כיתת אם', teacher: 'מיכל אברהמי', tint: 'emerald' }
+                ];
+                saveSchedule();
+                renderDayPills();
+                renderSchedule();
+                closeModal('scanner-modal');
+                showToast('המערכת נסרקה והומרה לעיצוב iOS 27 Glass!');
+            }, 1900);
+        }
+
+        /* =====================================================================
+           8. MODAL & TOAST HELPERS
+        ===================================================================== */
+        function openModal(id) {
+            document.getElementById(id).classList.add('open');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('open');
+        }
+
+        function openPwaModal() {
+            openModal('pwa-modal');
+        }
+
+        let toastTimeout;
+        function showToast(message, iconName = 'check-circle') {
+            const banner = document.getElementById('toast-banner');
+            const textEl = document.getElementById('toast-text');
+            const iconEl = document.getElementById('toast-icon');
+
+            textEl.textContent = message;
+            iconEl.className = `ph-fill ph-${iconName} text-sky-400 text-lg`;
+
+            banner.classList.remove('opacity-0', '-translate-y-4');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                banner.classList.add('opacity-0', '-translate-y-4');
+            }, 3200);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // Close modals when clicking on dark backdrop
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.addEventListener('click', (e) => {
+                if (e.target === backdrop) {
+                    backdrop.classList.remove('open');
+                }
+            });
+        });
+
+        /* =====================================================================
+           9. BOOTSTRAP APP
+        ===================================================================== */
+        window.addEventListener('DOMContentLoaded', () => {
+            generatePwaAssets();
+            updateHeaderDate();
+            loadSchedule();
+            renderDayPills();
+            renderSchedule();
+
+            // Refresh live Dynamic Island timer every 30 seconds
+            setInterval(updateDynamicIslandAndSpotlight, 30000);
+        });
+    </script>
+</body>
+</html>
